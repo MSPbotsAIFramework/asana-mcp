@@ -1,0 +1,138 @@
+[
+  {
+    "id": "TC1",
+    "ac": "AC1",
+    "text": "Given a valid Asana token, When tools/list is called, Then the catalog contains all 9 asana_* tools (list_workspaces, search_tasks, get_task, create_task, update_task, add_comment, list_projects, list_sections, manage_task_tags) each with the documented read-only/write hint",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_tools_list_has_all_nine_tools_with_hints"]
+  },
+  {
+    "id": "TC2",
+    "ac": "AC2",
+    "text": "Given no X-Asana-Access-Token header, When any asana_* tool is called, Then the server returns 401 naming the header before any outbound call to Asana is made",
+    "type": "auto",
+    "tests": ["tests/test_middleware.py::test_missing_header_returns_401_before_reaching_handler"]
+  },
+  {
+    "id": "TC3",
+    "ac": "AC9",
+    "text": "Given Asana returns 401 for an invalid/expired token, When a tool is called, Then the tool returns the structured error envelope with code unauthorized, not an exception",
+    "type": "auto",
+    "tests": [
+      "tests/test_tools.py::test_get_task_maps_upstream_401_to_unauthorized_envelope",
+      "tests/test_errors.py::test_from_status_maps_known_http_codes"
+    ]
+  },
+  {
+    "id": "TC4",
+    "ac": "AC4",
+    "text": "Given a mocked Asana task-search response, When asana_search_tasks is called, Then the normalized result contains gid/name/completed/assignee_gid/due_on/permalink_url and respects limit",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_search_tasks_normalizes_fields_and_respects_limit"]
+  },
+  {
+    "id": "TC5",
+    "ac": "AC4",
+    "text": "Given a real Asana workspace with a known task, When searching by its title keyword, Then the returned task's id/name/status match what is shown in the Asana UI",
+    "type": "manual",
+    "steps": [
+      "Obtain a real Asana Personal Access Token for a workspace with at least one known task",
+      "Call asana_search_tasks with query set to a keyword unique to that task's title",
+      "Open the same task in the Asana web UI"
+    ],
+    "expect": "The tool's returned gid/name/completed/due_on match the task as shown in the Asana UI",
+    "result": "untested",
+    "notes": "needs a real vendor account -- not blocking per mcp-track.md 2.5"
+  },
+  {
+    "id": "TC6",
+    "ac": "AC5",
+    "text": "Given a mocked Asana response, When asana_create_task is called with name/project/notes/assignee/due date, Then the outbound request body matches the documented contract and the tool returns gid/name/permalink_url from the mocked response",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_create_task_sends_documented_body_and_returns_result"]
+  },
+  {
+    "id": "TC7",
+    "ac": "AC5",
+    "text": "Given a real Asana project, When creating a task through the tool, Then the task appears in that project in the Asana UI with the given name",
+    "type": "manual",
+    "steps": [
+      "Obtain a real Asana Personal Access Token for a workspace with at least one project",
+      "Call asana_create_task with that project's gid and a distinctive name",
+      "Open the project in the Asana web UI"
+    ],
+    "expect": "A new task with the given name is visible in the project in the Asana UI",
+    "result": "untested",
+    "notes": "needs a real vendor account -- not blocking per mcp-track.md 2.5"
+  },
+  {
+    "id": "TC8",
+    "ac": "AC6",
+    "text": "Given a mocked Asana response, When asana_update_task is called with only assignee_gid, Then the outbound request only changes that field (partial update) and the tool returns the updated, normalized task",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_update_task_only_sends_supplied_field"]
+  },
+  {
+    "id": "TC9",
+    "ac": "AC7",
+    "text": "Given a mocked Asana response, When asana_add_comment is called, Then the tool posts to the task's stories endpoint and returns the created comment's gid/text",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_add_comment_posts_to_stories_endpoint"]
+  },
+  {
+    "id": "TC10",
+    "ac": "AC3",
+    "text": "Given two mocked, linked pages of projects, When asana_list_projects is called twice (second call passing the first call's cursor), Then the second call's results pick up where the first left off and has_more is false on the final page",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_list_projects_pagination_round_trip"]
+  },
+  {
+    "id": "TC11",
+    "ac": "AC8",
+    "text": "Given a mocked Asana response, When asana_manage_task_tags is called with add/remove, Then both Asana calls (addTag/removeTag) are made and the tool returns the resulting tag list",
+    "type": "auto",
+    "tests": [
+      "tests/test_tools.py::test_manage_task_tags_calls_add_and_remove_by_gid",
+      "tests/test_tools.py::test_manage_task_tags_resolves_tag_name_and_creates_if_missing",
+      "tests/test_tools.py::test_manage_task_tags_remove_unknown_name_is_a_noop"
+    ]
+  },
+  {
+    "id": "TC12",
+    "ac": "AC9",
+    "text": "Given a mocked Asana 429 response with Retry-After, When any tool is called, Then the client retries honoring the header and, if still failing, returns the error envelope with code rate_limited, retryable true",
+    "type": "auto",
+    "tests": [
+      "tests/test_client.py::test_429_retries_honoring_retry_after_then_succeeds",
+      "tests/test_client.py::test_429_exhausted_retries_raises_with_429_status",
+      "tests/test_errors.py::test_from_status_rate_limited_is_retryable"
+    ]
+  },
+  {
+    "id": "TC13",
+    "ac": "AC9",
+    "text": "Given a mocked Asana 404 response, When asana_get_task is called with an unknown task_gid, Then the tool returns code not_found, not an exception",
+    "type": "auto",
+    "tests": ["tests/test_tools.py::test_get_task_maps_upstream_404_to_not_found_envelope"]
+  },
+  {
+    "id": "TC14",
+    "ac": "AC10",
+    "text": "Given two concurrent tool calls with different tokens (one with an injected delay), When both run at the same time, Then neither request's token or response ever appears in the other's execution",
+    "type": "auto",
+    "tests": ["tests/test_middleware.py::test_concurrent_requests_do_not_leak_tokens"]
+  },
+  {
+    "id": "TC15",
+    "ac": "AC1",
+    "text": "Given the connector has been published to INT and its wiki page processed, When a user opens the connector's docs.mspbots.ai page, Then it documents X-Asana-Access-Token, how to obtain it, and lists the 9 tools",
+    "type": "manual",
+    "steps": [
+      "After the review leg publishes asana-mcp to INT and processes the connector wiki page",
+      "Open the connector's page under https://docs.mspbots.ai/connectors/"
+    ],
+    "expect": "The page documents the X-Asana-Access-Token header, how to obtain a Personal Access Token, and lists all 9 asana_* tools",
+    "result": "untested",
+    "notes": "executed in the review leg after INT registration and the wiki step, see mcp-track.md 4.5 -- not a design-leg or dev-leg gate"
+  }
+]
