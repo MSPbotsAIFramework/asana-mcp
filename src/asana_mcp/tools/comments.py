@@ -10,6 +10,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .. import errors
 from ..api_client import AsanaClient, AsanaError
+from ..observability import log_tool_call
 from ..pagination import dump
 
 
@@ -17,6 +18,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> 
     @mcp.tool(
         annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False}
     )
+    @log_tool_call("asana_add_comment")
     async def asana_add_comment(task_gid: str, text: str) -> str:
         """Add a comment to an Asana task. Calling this twice posts two comments
         -- it is not idempotent, same as posting a comment twice in the Asana UI.

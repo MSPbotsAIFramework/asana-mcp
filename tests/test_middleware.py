@@ -9,13 +9,14 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from asana_mcp.config import ASANA_TOKEN_HEADER
+from asana_mcp.observability import get_request_id
 from asana_mcp.server import GatewayCredsMiddleware, _token_var
 
 
 def _build_app() -> Starlette:
     async def echo(_):
         # Reaching here proves the middleware let the request through.
-        return JSONResponse({"token": _token_var.get()})
+        return JSONResponse({"token": _token_var.get(), "request_id": get_request_id()})
 
     app = Starlette(routes=[Route("/mcp", echo, methods=["POST"])])
     return GatewayCredsMiddleware(app)
@@ -35,9 +36,15 @@ def test_header_present_passes_through_and_resets_after():
     client = TestClient(_build_app())
     resp = client.post("/mcp", json={}, headers={ASANA_TOKEN_HEADER: "tok-123"})
     assert resp.status_code == 200
-    assert resp.json() == {"token": "tok-123"}
-    # contextvar must not leak past the request.
+    body = resp.json()
+    assert body["token"] == "tok-123"
+    # A request id was minted for this request (observability.py) and is
+    # distinguishable from the credential.
+    assert body["request_id"] is not None
+    assert body["request_id"] != "tok-123"
+    # Both contextvars must not leak past the request.
     assert _token_var.get() is None
+    assert get_request_id() is None
 
 
 async def test_concurrent_requests_do_not_leak_tokens():

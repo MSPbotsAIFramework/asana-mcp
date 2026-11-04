@@ -1,3 +1,4 @@
+import logging
 import sys
 
 from starlette.applications import Starlette
@@ -34,6 +35,10 @@ def build_app() -> tuple[Starlette, "object"]:
 
 def main() -> None:
     import uvicorn
+
+    # Plain "%(message)s": observability.py already emits one complete JSON
+    # object per line, so the handler must not wrap it in its own prefix.
+    logging.basicConfig(level=logging.INFO, format="%(message)s", stream=sys.stdout)
 
     app, settings = build_app()
     print(

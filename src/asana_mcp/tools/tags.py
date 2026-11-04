@@ -20,6 +20,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .. import errors
 from ..api_client import AsanaClient, AsanaError
+from ..observability import log_tool_call
 from ..pagination import dump
 
 
@@ -44,6 +45,7 @@ async def _resolve_tag_gid(
 
 def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> None:
     @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True})
+    @log_tool_call("asana_manage_task_tags")
     async def asana_manage_task_tags(
         task_gid: str, add: list[str] | None = None, remove: list[str] | None = None
     ) -> str:

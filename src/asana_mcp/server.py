@@ -8,6 +8,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .api_client import AsanaClient
 from .config import ASANA_TOKEN_HEADER, Settings
+from .observability import new_request_id, reset_request_id, set_request_id
 
 # Per-request credential contextvar. GatewayCredsMiddleware sets this before
 # the MCP handler runs. Python asyncio copies context per task, so concurrent
@@ -44,6 +45,11 @@ class GatewayCredsMiddleware:
     /mcp request and stores it in a contextvar for the duration of that
     request. Missing header -> 401 before the request reaches the MCP handler,
     and therefore before any call to Asana (AC2).
+
+    Also mints a per-request correlation id (observability.new_request_id())
+    with the same set/reset-in-finally lifetime as the token, so every
+    structured tool-call log line this request produces (observability.py)
+    can be grouped by request_id without ever logging the token itself.
     """
 
     def __init__(self, app: ASGIApp):
@@ -73,10 +79,12 @@ class GatewayCredsMiddleware:
             return
 
         token_ctx = _token_var.set(token)
+        request_id_ctx = set_request_id(new_request_id())
         try:
             await self.app(scope, receive, send)
         finally:
             _token_var.reset(token_ctx)
+            reset_request_id(request_id_ctx)
 
 
 def create_mcp_server(settings: Settings) -> FastMCP:

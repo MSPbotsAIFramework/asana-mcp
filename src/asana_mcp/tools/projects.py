@@ -11,11 +11,13 @@ from mcp.server.fastmcp import FastMCP
 
 from .. import errors
 from ..api_client import AsanaClient, AsanaError
+from ..observability import log_tool_call
 from ..pagination import DEFAULT_LIMIT, dump, page_result, paginate_params
 
 
 def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> None:
     @mcp.tool(annotations={"readOnlyHint": True})
+    @log_tool_call("asana_list_projects")
     async def asana_list_projects(
         workspace_gid: str, limit: int = DEFAULT_LIMIT, cursor: str | None = None
     ) -> str:
@@ -46,6 +48,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> 
         return dump(page_result("projects", projects, next_page))
 
     @mcp.tool(annotations={"readOnlyHint": True})
+    @log_tool_call("asana_list_sections")
     async def asana_list_sections(
         project_gid: str, limit: int = DEFAULT_LIMIT, cursor: str | None = None
     ) -> str:

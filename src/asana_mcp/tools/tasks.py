@@ -13,6 +13,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .. import errors
 from ..api_client import AsanaClient, AsanaError
+from ..observability import log_tool_call
 from ..pagination import DEFAULT_LIMIT, dump, page_result, paginate_params
 
 _SEARCH_FIELDS = "name,completed,assignee,due_on,permalink_url"
@@ -55,6 +56,7 @@ def _detail(task: dict) -> dict:
 
 def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> None:
     @mcp.tool(annotations={"readOnlyHint": True})
+    @log_tool_call("asana_search_tasks")
     async def asana_search_tasks(
         workspace_gid: str | None = None,
         project_gid: str | None = None,
@@ -104,6 +106,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> 
         return dump(page_result("tasks", tasks, next_page))
 
     @mcp.tool(annotations={"readOnlyHint": True})
+    @log_tool_call("asana_get_task")
     async def asana_get_task(task_gid: str) -> str:
         """Get a single Asana task by id, including its notes and tags.
 
@@ -124,6 +127,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> 
     @mcp.tool(
         annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": False}
     )
+    @log_tool_call("asana_create_task")
     async def asana_create_task(
         name: str,
         workspace_gid: str | None = None,
@@ -176,6 +180,7 @@ def register(mcp: FastMCP, client_factory: Callable[[], AsanaClient | None]) -> 
         )
 
     @mcp.tool(annotations={"readOnlyHint": False, "destructiveHint": False, "idempotentHint": True})
+    @log_tool_call("asana_update_task")
     async def asana_update_task(
         task_gid: str,
         name: str | None = None,

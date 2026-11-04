@@ -117,6 +117,15 @@ for pagination; the response reports `has_more` and the next `cursor`.
 There are no delete tools in this version (no business need was stated, and
 there is no test account to rehearse recovery from an accidental delete).
 
+## Logging
+
+Every tool call emits one structured JSON log line to stdout: `tool` name,
+`request_id` (one per inbound `/mcp` request), `duration_ms`, `outcome`
+(`ok` or `error`), `error_code` (the error envelope's `code`, when any), and
+`resource_ids` (the `*_gid` arguments the call touched, e.g.
+`["task_gid=123"]`). The credential and the raw Asana response body are never
+logged -- see `src/asana_mcp/observability.py`.
+
 ## Local development
 
 ```bash
