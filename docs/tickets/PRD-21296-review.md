@@ -39,3 +39,27 @@ Only the one must-fix above was addressed; no other changes were made.
   - `docker run` + `GET /health`: `200 {"status":"ok"}`; `docker inspect --format '{{.Config.User}}'`: `asana` (non-root) — unchanged from round 1.
   - **Live protocol-level check of the fix itself** (not just unit tests): ran the built container, called `POST /mcp` `tools/call` for `asana_get_task` with a dummy (invalid) token — got the expected `unauthorized` error envelope back over the wire, and `docker logs` showed exactly one line: `{"event":"tool_call","request_id":"f221af89b372","tool":"asana_get_task","duration_ms":116.4,"outcome":"error","error_code":"unauthorized","resource_ids":["task_gid=999"]}` — confirms the feature works end-to-end in the real container, not only under mocked unit tests, and that the dummy token string itself does not appear anywhere in that line.
 - No destructive writes, no schema change, no new dependency, no change to any tool's name/parameters/annotations/return shape — scope is exactly the one must-fix.
+
+## Round 2 · 2026-11-04 · reviewed dev/PRD-21296 @ c080c02 (base 0438bb2)
+
+Verdict: approved
+
+### Fix verification (round 1 must-fix)
+
+The round 1 must-fix (no structured per-tool-call logging) is resolved. Independently re-derived, not taken on the dev leg's word:
+
+- `src/asana_mcp/observability.py` exists: `log_tool_call(tool_name)` decorator + `contextvars`-based request id (`new_request_id`/`set_request_id`/`reset_request_id`/`get_request_id`). One JSON line per completed call via `logging.getLogger("asana_mcp.tools").info(...)`: `event`, `request_id`, `tool`, `duration_ms`, `outcome`, `error_code`, `resource_ids`. Matches the design's Observability sentence verbatim (`docs/tickets/PRD-21296.md:154`) — tool name, duration, outcome/error code, tenant-opaque resource ids, never the credential or raw response body.
+- `error_code` is read from the tool's own JSON result via `_outcome()`, which matches `src/asana_mcp/errors.py:envelope()`'s shape (`{"error": {"code", "message", "retryable"}}`) exactly — checked both files side by side, not assumed.
+- `resource_ids` reads only `kwargs` keys ending in `_gid`. Confirmed this is not a gap: FastMCP (`fastmcp/tools/function_tool.py` in this worktree's own `.venv`) invokes the registered function by validating the inbound JSON object against its signature and calling it with that dict — never positionally — and `tests/test_observability.py` exercises the real path (`mcp.call_tool("asana_get_task", {"task_gid": "1"})`, not a direct function call), so the capture mechanism is exercised the same way production traffic hits it.
+- `git diff 12a2bcc..c080c02 -- src/asana_mcp/tools/*.py | grep -c '@log_tool_call'` = 9, `grep -c '@mcp.tool' src/asana_mcp/tools/*.py` totals 9 — every tool decorated, none missed. Decorator order is `@mcp.tool(...)` outer / `@log_tool_call(...)` inner in every case (matches the module's own docstring example).
+- Credential path re-checked: the token lives only in `server._token_var` (set by `GatewayCredsMiddleware`), is never passed as a tool argument, and `log_tool_call`'s wrapper only ever sees `*args, **kwargs` of the tool call itself — there is no code path for the decorator to observe or log it.
+- Re-ran the gates myself on `dev/PRD-21296 @ c080c02` (`uv sync && uv run pytest -q`): **36 passed**, 0 failed — matches the Fixes section's claim (29 + 7 new). `uv run ruff check .`: all checks passed. `uv run ruff format --check .`: 23 files already formatted. Chinese-char scan (`src tests README.md Dockerfile pyproject.toml`): no output.
+- README: diffed the "MSPbots Connector" section (lines 14–85) against `vendor-mcp-development/reference/readme-connector-section.md` again after the round 1 fix — still identical (only a trailing-blank-line artifact of section boundaries, no content change). The new `## Logging` section sits after `## Tools`, does not touch the frozen connector section.
+- `tests/test_observability.py` (7 cases) and the extended `tests/test_middleware.py` assertions read as real regression coverage for the fix, not padding: they assert on `outcome`/`error_code`/`resource_ids` values, that the token string never appears in a log line, that `inspect.signature` survives the wrapper (the exact thing that would silently break FastMCP's schema if `functools.wraps` were dropped), and that the request-id contextvar resets after the request.
+- `git merge-base --is-ancestor origin/main HEAD` on `c080c02`: true, and `origin/main` is still `0438bb2` (unchanged since round 1) — base has not moved, no re-sync needed before merging.
+
+### New findings in this round's diff
+
+None. The diff `12a2bcc..c080c02` (`README.md`, `src/asana_mcp/observability.py`, `src/asana_mcp/__main__.py`, `src/asana_mcp/server.py`, 5 files under `src/asana_mcp/tools/`, `tests/test_middleware.py`, `tests/test_observability.py`, plus this review doc) is scoped exactly to the round 1 must-fix, as the Fixes section claims. No new dependency, no schema, no tool signature/annotation change, no destructive behavior added.
+
+Status: frozen @ c080c02
